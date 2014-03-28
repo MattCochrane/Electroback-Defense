@@ -9,7 +9,7 @@
 // I/O Definitions
 #define CCWlim (PIND & (1 << PD0)) // Limit sensor input from board
 #define CWlim (PIND & (1 << PD1))
-#define ENABLE PD2	
+#define ENABLE PD2
 #define THROW PD3	// Throw, speed 0/1, are not used in defense
 #define Speed0 PD4
 #define Speed1 PD5
@@ -25,15 +25,15 @@
 #define DONE 0
 
 // Global Variables
-unsigned int TurnStepCount; // unsigned to allow more information
-unsigned char TurnInProgress, DirectionOfStep; // Indicators of movement
+uint16_t TurnStepCount; // unsigned to allow more information
+uint8_t TurnInProgress, DirectionOfStep; // Indicators of movement
 
 // Function Prototypes
-void AbortTurn(void);
+uint8_t Turn_Defense(uint16_t NumberOfSteps, uint8_t MovingDirection);
+
+void AbortTurn();
 
 void Calibrate();
-
-unsigned char Move(short NumberOfSteps, char MovingDirection);
 
 
 int main(void)
@@ -52,20 +52,7 @@ int main(void)
 	}
 }
 
-void Calibrate()
-{
-	do 
-	{
-		while(Move(100, CW) == 1);
-	} while (CWlim == 0);
-	
-	do 
-	{
-		while(Move(100,CCW) == 1);
-	} while (CCWlim == 0);
-}
-
-unsigned char Move(short NumberOfSteps, char MovingDirection)
+uint8_t Turn_Defense(uint16_t NumberOfSteps, uint8_t MovingDirection)
 {
 	if (TurnInProgress == 1) // Don't move if already moving
 	{
@@ -86,11 +73,11 @@ unsigned char Move(short NumberOfSteps, char MovingDirection)
 	
 	TurnInProgress = BUSY;
 	
-	TCCR0A = (1 << WGM01) | (1 << COM0A0); // Sets CTC mode, toggles CLK when 
+	TCCR0A = (1 << WGM01) | (1 << COM0A0); // Sets CTC mode, toggles CLK when
 	
 	TCCR0B = (1 << CS02); // Prescale to 8MHz/256
 	
-	OCR0A = 4;	
+	OCR0A = 4;
 	
 	TCNT0 = 0; // Sets timer to zero
 	
@@ -100,7 +87,8 @@ unsigned char Move(short NumberOfSteps, char MovingDirection)
 	
 	return 0;
 }
-void AbortTurn(void)
+
+void AbortTurn()
 {
 	TIMSK0 &= ~(1 << OCIE0A); // Disable interrupts
 	
@@ -113,8 +101,21 @@ void AbortTurn(void)
 	TurnInProgress = DONE; // Tells program there is no turn
 }
 
+void Calibrate()
+{
+	do
+	{
+		while(Turn_Defense(100, CW) == 1);
+	} while (CWlim == 0);
+	
+	do
+	{
+		while(Turn_Defense(100,CCW) == 1);
+	} while (CCWlim == 0);
+}
+
 ISR(TIMER0_COMPA_vect)// Goes to limit, forever
-{ 
+{
 	if ((CWlim != 0 && DirectionOfStep == CW) || (CCWlim != 0 && DirectionOfStep ==CCW) || --TurnStepCount == 0)
 	{
 		TCCR0B = 0; // Disable timer until further notice
