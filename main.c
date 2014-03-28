@@ -31,8 +31,9 @@ unsigned char TurnInProgress, DirectionOfStep; // Indicators of movement
 // Function Prototypes
 void AbortTurn(void);
 
-void Calibrate(int dir);
-unsigned char Move(short NumberOfSteps, char MovingDirection, int Count);
+void Calibrate();
+
+unsigned char Move(short NumberOfSteps, char MovingDirection);
 
 
 int main(void)
@@ -43,7 +44,7 @@ int main(void)
 	
 	sei(); // Enable global interrupts
 	
-	Calibrate (1); // Sets up defenders, MAYBE
+	Calibrate (); // Sets up defenders, MAYBE
 
 	while(1) // Loops forever
 	{
@@ -51,20 +52,20 @@ int main(void)
 	}
 }
 
-void Calibrate(int dir) // TODO
+void Calibrate()
 {
 	do 
 	{
-		while(Move(100, CW, 4) == 1);
+		while(Move(100, CW) == 1);
 	} while (CWlim == 0);
 	
 	do 
 	{
-		while(Move(100,CCW, 4) == 1);
+		while(Move(100,CCW) == 1);
 	} while (CCWlim == 0);
 }
 
-unsigned char Move(short NumberOfSteps, char MovingDirection, int Count)
+unsigned char Move(short NumberOfSteps, char MovingDirection)
 {
 	if (TurnInProgress == 1) // Don't move if already moving
 	{
@@ -81,7 +82,7 @@ unsigned char Move(short NumberOfSteps, char MovingDirection, int Count)
 		Control &= ~(1 << DIRECTION);
 	}
 	
-	TurnStepCount = NumberOfSteps;
+	TurnStepCount = NumberOfSteps << 1;
 	
 	TurnInProgress = BUSY;
 	
@@ -89,7 +90,7 @@ unsigned char Move(short NumberOfSteps, char MovingDirection, int Count)
 	
 	TCCR0B = (1 << CS02); // Prescale to 8MHz/256
 	
-	OCR0A = Count;		// Sets to 4ms pulse width : (period * 8MHz)/(2 * prescaler) - 1
+	OCR0A = 4;	
 	
 	TCNT0 = 0; // Sets timer to zero
 	
