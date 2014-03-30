@@ -254,12 +254,13 @@ int main(void){
 	
 	if (TEAM == 0)
 	{
-		play_1();
-	}else	{
 		block1();
 		unblock1();
 		block2();
 		unblock2();
+		
+	} else	{
+		play_1();
 	}
     
     DDRC |= (1<<PC3);        //Setting up an output so i can choose the plays
