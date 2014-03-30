@@ -10,7 +10,7 @@
 
 // Offense or Defense
 
-#define TEAM PB0
+#define TEAM (PINB & (1<<PB0)) //If PB0 is 0, TEAM == 0. If PB0 is 1, TEAM != 0. HOWEVER, TEAM is never == 1.
 
 //OUTPUTS
 
@@ -252,15 +252,15 @@ int main(void){
     
     PORTD |= (1<<THROW);
 	
-	if (TEAM == 1)
-	{
-		play_1();
-	}else if (TEAM == 0)
+	if (TEAM == 0)
 	{
 		block1();
 		unblock1();
 		block2();
 		unblock2();
+		
+	} else	{
+		play_1();
 	}
     
     DDRC |= (1<<PC3);        //Setting up an output so i can choose the plays
