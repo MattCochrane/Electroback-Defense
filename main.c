@@ -7,6 +7,11 @@
 #include <avr/interrupt.h>
 #include <avr/eeprom.h>
 
+
+// Offense or Defense
+
+#define TEAM PB0
+
 //OUTPUTS
 
 #define ENABLE  PD2                            //Enables signal to board
@@ -107,7 +112,7 @@ void Steps(unsigned int Steps, unsigned char Dir){
     if(Dir == CW){
         PORTD |= (CW<<DIRECT);
         } else if(Dir == CCW){
-        PORTD &= ~(CW<<DIRECT);
+        PORTD |= (CCW<<DIRECT);
     }
     TCCR0A |= (1<<WGM01) | (1<<COM0A0);     //Set CTC and output toggle
     TCCR0B |= (1<<CS02) |(1<<CS00);        //1024 prescale
@@ -122,10 +127,10 @@ void Steps(unsigned int Steps, unsigned char Dir){
 }
 
 
-/*void d_calibrateR(void){        //calibrates the right hand side
+void d_calibrateR(void){        //calibrates the right hand side
     
     while(SenseCW == 0){
-        Steps(1, CCW);
+        Steps(1, CW);
     }
     return;
 }
@@ -134,7 +139,7 @@ void d_calibrateL(void){        //calibrates the lefthand side
     steps_taken = 0;
     
     while(SenseCCW == 0){
-        Steps(1, CW);
+        Steps(1, CCW);
         steps_taken++;
     }
     
@@ -168,7 +173,7 @@ void block2(void){
 void unblock2(void){
     Steps(8000, CW);
     return;
-}*/
+}
 
 void Delay(unsigned int Delay){      //can change to char later when second delay not needed
     int i;
@@ -195,7 +200,7 @@ void fire(void){
 
     Delay(1000);
     PORTD ^= (1<<THROW);
-    Delay(350);
+    Delay(300);
     PORTD ^= (1<<THROW);
     Delay(500);                        //Take out while loop and this line for discrete fnct
     return;
@@ -246,6 +251,17 @@ int main(void){
     DDRD &= ~(1<<PD1) | ~(1<<PD0);                        //Initialize inputs
     
     PORTD |= (1<<THROW);
+	
+	if (TEAM == 1)
+	{
+		play_1();
+	}else if (TEAM == 0)
+	{
+		block1();
+		unblock1();
+		block2();
+		unblock2();
+	}
     
     DDRC |= (1<<PC3);        //Setting up an output so i can choose the plays
     DDRC &= ~(1<<PC1) | ~(1<<PC2); 
@@ -257,3 +273,5 @@ do{
 } while(1);
 
 }
+
+
