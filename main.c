@@ -1,126 +1,259 @@
-//DEFENSE
+//Main c program for offense
+//Matthew Page
+//Started on March 1, 2014
 
-//Author: Matthew Cochrane
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/eeprom.h>
 
-// I/O Definitions
-#define CCWlim (PIND & (1 << PD0)) // Limit sensor input from board
-#define CWlim (PIND & (1 << PD1))
-#define ENABLE PD2
-#define THROW PD3	// Throw, speed 0/1, are not used in defense
-#define Speed0 PD4
-#define Speed1 PD5
-#define CLK PD6
-#define DIRECTION PD7
+//OUTPUTS
 
-#define Control PORTD
+#define ENABLE  PD2                            //Enables signal to board
+#define THROW   PD3                            //Activate solenoid
+#define BUMP0   PD4                            //First bumper control
+#define BUMP1   PD5                            //Second bumper control
+#define STEP    PD6                            //Clk signal to stepper, only pin possible
+#define DIRECT  PD7                            //Sets direction, 0=CCW; 1=CW
 
-// State Definitions
-#define CW 0
-#define CCW 1
-#define BUSY 1
-#define DONE 0
-
-// Global Variables
-unsigned int TurnStepCount; // unsigned to allow more information
-unsigned char TurnInProgress, DirectionOfStep; // Indicators of movement
-
-// Function Prototypes
-void AbortTurn(void);
-
-void Calibrate(void);
-
-unsigned char Move(short NumberOfSteps, char MovingDirection);
+//INPUTS
+#define SenseCCW (PIND & (1 << PD0))    // Counter clockwise limit sensor from driver board.
+#define SenseCW (PIND & (1 << PD1))     // Clockwise limit sensor from driver board.
+#define Play1 (PINC & (1 << PC1))        //Play selector for pin c 1
+#define Play2 (PINC & (1 << PC2))        //Play selector for pin c 2
 
 
-int main(void)
-{
-	DDRD |= 0xFC; // Sets inputs and outputs. I need bits 1,0 as inputs so they are the only ones set to 0. 0xFC = 11111100
+#define CCW  0
+#define CW 1
 
-	TurnInProgress = DONE; // Lets program know there is no turn happening right now
+//define variables
+volatile int step_count;
+unsigned short int num_step;
+unsigned char turn;
+unsigned int steps_taken;
 
-	sei(); // Enable global interrupts
 
-	Calibrate (); // Sets up defenders, MAYBE
+//initialize functions
+void Steps(unsigned int Steps, unsigned char Dir);
+void Delay(unsigned int Delay);
 
-	while(1) // Loops forever
-	{
+ISR (TIMER0_COMPA_vect){
+    step_count++;    //increment the counter
 
-	}
 }
 
-void Calibrate()
-{
-	do // Move defenders until clockwise limit is reached
-	{
-		while(Move(100, CW) == 1);
-	} while (CWlim == 0);
-
-	do // move defenders until CCW lim is reached
-	{
-		while(Move(100,CCW) == 1);
-	} while (CCWlim == 0);
+void aim1(void){
+    Steps(53, CCW);
+    return;
 }
 
-unsigned char Move(short NumberOfSteps, char MovingDirection)
-{
-	if (TurnInProgress == 1) // Don't move if already moving
-	{
-		return 1;
-	}
-
-	DirectionOfStep = MovingDirection; // Save direction of defender to global direction indicator
-
-	if (MovingDirection == 1)
-	{
-		Control = (1 << DIRECTION);
-	}
-	else {
-		Control &= ~(1 << DIRECTION);
-	}
-
-	TurnStepCount = NumberOfSteps << 1;
-
-	TurnInProgress = BUSY;
-
-	TCCR0A = (1 << WGM01) | (1 << COM0A0); // Sets CTC mode, toggles CLK when
-
-	TCCR0B = (1 << CS02); // Prescale to 8MHz/256
-
-	OCR0A = 62; // OCR0A = ( (period * Fio) / (2 * N) ) - 1
-
-	TCNT0 = 0; // Sets timer to zero
-
-	Control &= ~(ENABLE); // Enables movement
-
-	TIMSK0 = (1 << OCIE0A); // Enables interrupts, they take over
-
-	return 0;
-}
-void AbortTurn(void)
-{
-	TIMSK0 &= ~(1 << OCIE0A); // Disable interrupts
-
-	TurnStepCount = 0; // Clear the step count
-
-	TCCR0B = 0; // Turn off timer
-
-	Control |= (1 << ENABLE); // Disable movement
-
-	TurnInProgress = DONE; // Tells program there is no turn
+void aim2(void){
+    Steps(70, CW);
+    return;
 }
 
-ISR(TIMER0_COMPA_vect)// Goes to limit, forever
-{
-	Control ^= CLK;
-	if ((CWlim != 0 && DirectionOfStep == CW) || (CCWlim != 0 && DirectionOfStep ==CCW) || --TurnStepCount == 0)
-	{
-		TCCR0B = 0; // Disable timer until further notice
-		TIMSK0 &= ~(1 << OCIE0A); // Disable interrupts
-		Control |= (1 << ENABLE);
-		TurnInProgress = DONE;
-	}
+void aim3(void){
+
+    Steps(80, CCW);
+    return;
+}
+
+void unaim1(void){
+    Steps(53, CW);
+    return;
+}
+
+void unaim2(void){
+    Steps(70, CCW);
+    return;
+}
+
+void unaim3(void){
+
+    Steps(80, CW);
+    return;
+}
+
+void calibrateR(void){        //calibrates the right hand side
+    
+    while(SenseCW == 0){
+        Steps(1, CCW);
+    }
+    return;
+}
+void calibrateL(void){        //calibrates the lefthand side
+    
+    steps_taken = 0;
+    
+    while(SenseCCW == 0){
+        Steps(1, CW);
+        steps_taken++;
+    }
+    
+    return;
+    
+}
+
+void centre(unsigned int middle){
+    
+    middle = steps_taken/2;
+    
+    Steps(middle, CCW);
+    return;
+}
+
+void Steps(unsigned int Steps, unsigned char Dir){
+    step_count = 0;
+    if(Dir == CW){
+        PORTD |= (CW<<DIRECT);
+        } else if(Dir == CCW){
+        PORTD &= ~(CW<<DIRECT);
+    }
+    TCCR0A |= (1<<WGM01) | (1<<COM0A0);     //Set CTC and output toggle
+    TCCR0B |= (1<<CS02) |(1<<CS00);        //1024 prescale
+    OCR0A = 20;                           //~5ms pulse
+    TCNT0 = 0;      // Reset timer, not sure why I would have to do this in CTC, but the examples have it...
+    TIMSK0 |= (1<<OCIE0A);                 //Set ISR compare vector
+    sei();                                //Enable interrupts
+
+    while(step_count < Steps){}
+    return;
+
+}
+
+
+/*void d_calibrateR(void){        //calibrates the right hand side
+    
+    while(SenseCW == 0){
+        Steps(1, CCW);
+    }
+    return;
+}
+void d_calibrateL(void){        //calibrates the lefthand side
+    
+    steps_taken = 0;
+    
+    while(SenseCCW == 0){
+        Steps(1, CW);
+        steps_taken++;
+    }
+    
+    return;
+    
+}
+
+void d_centre(unsigned int middle){  // defense blocking
+    
+    middle = steps_taken/2;
+    
+    Steps(middle, CCW);
+    return;
+}
+
+void block1(void){
+    Steps(6000, CW);
+    return;
+}
+
+void unblock1(void){
+    Steps(6000,CCW);
+    return;
+}
+
+void block2(void){
+    Steps(8000, CCW);
+    return;
+}
+
+void unblock2(void){
+    Steps(8000, CW);
+    return;
+}*/
+
+void Delay(unsigned int Delay){      //can change to char later when second delay not needed
+    int i;
+    for(i = 0; i < Delay; i++) {
+        TCCR0A = 0;
+        TCCR0B = (1<<CS02) | (1<<CS00);        // CLK/1024, No Waveform Generation
+        OCR0B = 7;                             //Approx 1mS
+        TCNT0 = 0;
+        TIFR0 = (1 << OCF0B);
+        while ( !(TIFR0 & (1<<OCF0B)));
+    }
+    TCCR0B = 0;                                // Turn Timer Off
+    i = 0;
+}
+
+
+void bumpers(void){                            //Simple turn bumpers on
+    PORTD &= ~(1<<BUMP0);
+    PORTD |= (1<<BUMP1);
+    return;
+}
+
+void fire(void){
+
+    Delay(1000);
+    PORTD ^= (1<<THROW);
+    Delay(350);
+    PORTD ^= (1<<THROW);
+    Delay(500);                        //Take out while loop and this line for discrete fnct
+    return;
+}
+
+void play_1(void){
+    calibrateR();
+    Delay(500);
+    calibrateL();
+    Delay(500);
+    centre(steps_taken);
+    Delay(500);
+    aim1();
+    fire();
+	unaim1();
+    aim2();
+    fire();
+    aim3();
+    fire();
+    return;
+}
+
+/*void defense(void){
+    
+    d_calibrateR();
+    Delay(500);
+    d_calibrateL();
+    Delay(500);
+    d_centre(steps_taken);
+    Delay(500);
+    block1();
+    Delay(500);
+    unblock1();
+    Delay(500);
+    block2();
+    Delay(500);
+    unblock2();
+    Delay(500);
+
+
+    return;
+
+}*/
+
+int main(void){
+    DDRD |= (1<<THROW) | (1<<BUMP0) | (1<<BUMP1);         //Initializing outputs
+    DDRD |= (1<<ENABLE) | (1<<STEP) | (1<<DIRECT);
+    DDRD &= ~(1<<PD1) | ~(1<<PD0);                        //Initialize inputs
+    
+    PORTD |= (1<<THROW);
+    
+    DDRC |= (1<<PC3);        //Setting up an output so i can choose the plays
+    DDRC &= ~(1<<PC1) | ~(1<<PC2); 
+    PORTC |= (1<<PC3);        //Always output a 1
+    
+    
+do{
+    play_1();
+} while(1);
+
 }
