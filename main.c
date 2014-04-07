@@ -19,7 +19,7 @@
 //INPUTS
 #define SenseCCW (PIND & (1 << PD0))    // Counter clockwise limit sensor from driver board.
 #define SenseCW (PIND & (1 << PD1))     // Clockwise limit sensor from driver board.
-#define Defence (PINC & (1<<PC0))    // Define the defense input given by the board
+#define Defence (PINC & (1<<PC0))		// Define the defense input given by the board
 #define Play1 (PINC & (1 << PC1))        //Play selector for pin c 1
 #define Play2 (PINC & (1 << PC2))        //Play selector for pin c 2
 
@@ -32,7 +32,7 @@
 volatile int step_count;
 unsigned short int num_step;
 unsigned char turn;
-volatile int steps_taken;
+unsigned int steps_taken;
 
 
 //initialize functions
@@ -44,35 +44,37 @@ ISR (TIMER0_COMPA_vect){
 
 }
 
+//////////**************** OFFENSE **************///////////
+
 void aim1(void){
-    Steps(75, CCW);
+    Steps(53, CCW);
     return;
 }
 
 void aim2(void){
-    Steps(350, CCW);
+    Steps(70, CW);
     return;
 }
 
 void aim3(void){
 
-    Steps(90, CCW);
+    Steps(80, CCW);
     return;
 }
 
 void unaim1(void){
-    Steps(75, CW);
+    Steps(53, CW);
     return;
 }
 
 void unaim2(void){
-    Steps(350, CW);
+    Steps(70, CCW);
     return;
 }
 
 void unaim3(void){
 
-    Steps(80, CCW);
+    Steps(80, CW);
     return;
 }
 
@@ -113,8 +115,7 @@ void Steps(unsigned int Steps, unsigned char Dir){
     }
     TCCR0A |= (1<<WGM01) | (1<<COM0A0);     //Set CTC and output toggle
     TCCR0B |= (1<<CS02) |(1<<CS00);        //1024 prescale
-    OCR0A = 20;
-    TCNT0 = 0;      // Reset timer, not sure why I would have to do this in CTC, but the examples have it...
+    OCR0A = 20;                           // Sets output compare value, 
     TIMSK0 |= (1<<OCIE0A);                 //Set ISR compare vector
     sei();                                //Enable interrupts
 
@@ -123,32 +124,49 @@ void Steps(unsigned int Steps, unsigned char Dir){
 
 }
 
-void Steps2(unsigned int Steps, unsigned char Dir){
-    step_count = 0;
-    if(Dir == CW){
-        PORTD |= (CW<<DIRECT);
-        } else if(Dir == CCW){
-        PORTD &= ~(CW<<DIRECT);
-    }
-    TCCR0A |= (1<<WGM01) | (1<<COM0A0);     //Set CTC and output toggle
-    TCCR0B |= (1<<CS01) |(1<<CS00);        //64 prescale
-    OCR0A = 12;                           //focra = 5000Hz
-    TCNT0 = 0;      // Reset timer, not sure why I would have to do this in CTC, but the examples have it...
-    TIMSK0 |= (1<<OCIE0A);                 //Set ISR compare vector
-    sei();                                //Enable interrupts
+void bumpers(void){                            //Simple turn bumpers on
+	PORTD &= ~(1<<BUMP0);
+	PORTD |= (1<<BUMP1);
+	return;
+}
 
-    while(step_count < Steps){}
-    return;
+void fire(void){
 
+	Delay(1000);
+	PORTD ^= (1<<THROW);
+	Delay(400);
+	PORTD ^= (1<<THROW);
+	Delay(1000);                        //Take out while loop and this line for discrete fnct
+	return;
 }
 
 //////////**************** DEFENSE **************///////////
+
+void Steps2(unsigned int Steps, unsigned char Dir){
+	step_count = 0;
+	if(Dir == CW){
+		PORTD |= (CW<<DIRECT);
+		} else if(Dir == CCW){
+		PORTD &= ~(CW<<DIRECT);
+	}
+	TCCR0A |= (1<<WGM01) | (1<<COM0A0);     //Set CTC and output toggle
+	TCCR0B |= (1<<CS01) |(1<<CS00);        //64 prescale
+	OCR0A = 12;                           //focra = 5000Hz
+	TIMSK0 |= (1<<OCIE0A);                 //Set ISR compare vector
+	sei();                                //Enable interrupts
+
+	while(step_count < Steps){}
+	return;
+
+}
+
+
 
 
 void d_calibrateR(void){        //calibrates the right hand side
     
     while(SenseCW == 0){
-        Steps2(1, CCW);
+        Steps(1, CCW);
     }
     return;
 }
@@ -157,7 +175,7 @@ void d_calibrateL(void){        //calibrates the lefthand side
     steps_taken = 0;
     
     while(SenseCCW == 0){
-        Steps2(1, CW);
+        Steps(1, CW);
         steps_taken++;
     }
     
@@ -198,7 +216,7 @@ void Delay(unsigned int Delay){      //can change to char later when second dela
     for(i = 0; i < Delay; i++) {
         TCCR0A = 0;
         TCCR0B = (1<<CS02) | (1<<CS00);        // CLK/1024, No Waveform Generation
-        OCR0B = 7;                             //Approx 1mS
+        OCR0B = 7;                             //Approx 2mS
         TCNT0 = 0;
         TIFR0 = (1 << OCF0B);
         while ( !(TIFR0 & (1<<OCF0B)));
@@ -207,22 +225,6 @@ void Delay(unsigned int Delay){      //can change to char later when second dela
     i = 0;
 }
 
-
-void bumpers(void){                            //Simple turn bumpers on
-    PORTD &= ~(1<<BUMP0);
-    PORTD |= (1<<BUMP1);
-    return;
-}
-
-void fire(void){
-
-    Delay(1000);
-    PORTD ^= (1<<THROW);
-    Delay(400);
-    PORTD ^= (1<<THROW);
-    Delay(1000);                        //Take out while loop and this line for discrete fnct
-    return;
-}
 
 void play_1(void){
     calibrateR();
@@ -233,18 +235,15 @@ void play_1(void){
     Delay(500);
     aim1();
     fire();
-    unaim1();
+	unaim1();
     aim2();
     fire();
-    unaim2();
     aim3();
     fire();
-    unaim3();
     return;
 }
 
 void defense(void){
-    
     
     d_calibrateR();
     Delay(500);
@@ -271,27 +270,30 @@ int main(void){
     DDRD |= (1<<ENABLE) | (1<<STEP) | (1<<DIRECT);
     DDRD &= ~(1<<PD1) | ~(1<<PD0);                        //Initialize inputs
     
-    PORTD |= (1<<THROW);    //Solenoid needs to be down
+    PORTD |= (1<<THROW);		//Solenoid needs to be down
     
     DDRC |= (1<<PC3);        //Setting up an output so i can choose the plays
-    DDRC &= ~(1<<PC1) | ~(1<<PC2) | ~(1<<PC0);    //Define input pins for plays and offence/defence
+    DDRC &= ~(1<<PC1) | ~(1<<PC2) | ~(1<<PC0);		//Define input pins for plays and offence/defence 
+	
     PORTC |= (1<<PC3);        //Always output a 1
-    //#define Play1 (PINC & (1 << PC1))
+	
+	//#define Play1 (PINC & (1 << PC1))
     
     
-    do{
-        
-        if(Defence == 0){
-            do{
-                defense();
-            }
-            while(1);
-            }else if((Play1 == 0) & (Defence == 1)){
-            do{
-                bumpers();
-                play_1();
-            } while(1);
-        }
-    } while(1);
+do{
+    
+	if(Defence == 0){
+		do{
+		defense();
+		}
+		while(1);
+		
+	}else if((Play1 == 0) & (Play2 == 0) & (Defence == 1)){
+		do{
+		play_1();
+		} while(1);
+	}
+	
+} while(1);
 
 }
